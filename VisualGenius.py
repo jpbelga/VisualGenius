@@ -4,11 +4,15 @@ import cv2
 import tkinter
 from PIL import ImageColor
 import numpy as np
+import time
+import matplotlib.pyplot as plt
+from numpy.polynomial.polynomial import Polynomial
 
 class ScreenInfo:
     def __init__(self):
         session = tkinter.Tk()
         self.resolution:tuple[int, int] = (session.winfo_screenwidth(), session.winfo_screenheight())
+
 class Target:
     def __init__(self, x:int, y:int, radius:int = 5):
         self.x = x
@@ -32,6 +36,7 @@ class TEAGame:
         self.fPS = self.camera.get(cv2.CAP_PROP_FPS)
         self.calibrationData:list[tuple[float]] = []
         self.centerCoord = tuple(a//2 for a in self.screenInfo.resolution)
+        self.thresholds = dict()
 
     def generateTargets(self, rows:int=3, cols:int=5, radius:int = 5):
         targets = []
@@ -48,9 +53,7 @@ class TEAGame:
         ROWS, COLS = 3, 5
         RADIUS = 10
         state = "INIT"
-        clock = pygame.time.Clock()
         running = True
-        calibrationList = []
         '''
         15 targets and the gaze horizontal and vertical ratios
 
@@ -59,7 +62,8 @@ class TEAGame:
         x x x x x
         
         TODO: I have to find the best operator to transform the ratios in the commands 
-        '''
+        '''        
+        lastBlink = np.zeros(10)
 
         # The state machine follows us in the hardest moments 
         while running:
@@ -91,13 +95,11 @@ class TEAGame:
                     frameCenter.center = self.centerCoord
                     # Exhibits the frame as a Surface
                     self.screenSession.blit(frameSurface, frameCenter)
-
                     
                     textSurface = self.font2.render('Pressione Espaço para iniciar a Calibração', False, ImageColor.getrgb('crimson'))
                     textCenter = textSurface.get_rect()
                     textCenter.center = self.centerCoord
                     self.screenSession.blit(textSurface, textCenter)
-
 
                     pygame.display.flip()
 
@@ -105,21 +107,25 @@ class TEAGame:
                     for event in pygame.event.get():
                         if event.type == pygame.QUIT:
                             running = False
-                        elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                            if targetId < (ROWS * COLS) - 1:
-                                targetId = targetId + 1
-                                targetVis[targetId] = True
-                                ratios = (self.gaze.horizontal_ratio(), self.gaze.vertical_ratio())
-                                self.calibrationData.append(ratios)
-                            else:
-                                state = "END"
-                                break
+                        
+                    if self.gaze.is_blinking() and not lastBlink:
+                        ratios = (self.gaze.horizontal_ratio(), self.gaze.vertical_ratio())
+                        self.calibrationData.append(ratios)
+
+                        if targetId < (ROWS * COLS) - 1:
+                            targetId = targetId + 1
+                            targetVis[targetId] = True
+
+                        else:
+                            state = "END"
 
                     # Draw targets if visible
-                    if targetVis[targetId]:
+                    if targetVis[targetId] and targetId < len(targetVis):
+                        time.sleep(.1)
                         targets[targetId].draw(self.screenSession)
                     
                     pygame.display.flip()
+                    lastBlink = self.gaze.is_blinking()
                     
                 case "END":
                     for event in pygame.event.get():
@@ -127,13 +133,119 @@ class TEAGame:
                             running = False
                         elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                             running = False
-
+                            self.genThresholds()
                     textSurface = self.font2.render('Calibração finalizada! Pressione Espaço para iniciar o Jogo', False, ImageColor.getrgb('crimson'))
                     textCenter = textSurface.get_rect()
                     textCenter.center = self.centerCoord
                     self.screenSession.blit(textSurface, textCenter)
-
                     pygame.display.flip()
+    
+    def testRound(self):
+                # Constants
+        WIDTH, HEIGHT = self.screenInfo.resolution[0], self.screenInfo.resolution[1]
+        ALPHA_START = 0  # Initial transparency (0 = fully transparent, 255 = fully opaque)
+        ALPHA_INCREMENT = 10  # Speed of transparency decrease
+
+        quadrants = {
+            "blue": pygame.Surface((WIDTH // 2, HEIGHT // 2), pygame.SRCALPHA),
+            "green": pygame.Surface((WIDTH // 2, HEIGHT // 2), pygame.SRCALPHA),
+            "red": pygame.Surface((WIDTH // 2, HEIGHT // 2), pygame.SRCALPHA),
+            "yellow": pygame.Surface((WIDTH // 2, HEIGHT // 2), pygame.SRCALPHA),
+        }
+
+        # Set initial transparency
+        alpha = np.full(4, ALPHA_START)
+
+        decreaseAlpha = np.zeros(4, dtype=np.bool_)  # Control transparency change
+
+        # Main loop
+        running = True
+        while running:
+            self.screenSession.fill(ImageColor.getrgb('lightgrey'))
+            _, frame = self.camera.read()
+            
+            # Process the gaze tracker
+            self.gaze.refresh(frame)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+
+            quadrant = self.getQuadrant()
+            decreaseAlpha[:] = False
+            if quadrant > -1:
+                decreaseAlpha[quadrant] = True
+
+            alpha[decreaseAlpha] = np.minimum(255, alpha[decreaseAlpha] + ALPHA_INCREMENT)
+            alpha[~decreaseAlpha] = np.maximum(0, alpha[~decreaseAlpha] - ALPHA_INCREMENT)
+
+            # Update quadrants with current alpha
+            quadrants["blue"].fill((*ImageColor.getrgb('blue'), alpha[0]))
+            quadrants["green"].fill((*ImageColor.getrgb('green'), alpha[1]))
+            quadrants["red"].fill((*ImageColor.getrgb('red'), alpha[2]))
+            quadrants["yellow"].fill((*ImageColor.getrgb('yellow'), alpha[3]))
+
+            # Draw quadrants
+            self.screenSession.blit(quadrants["blue"], (0, 0))
+            self.screenSession.blit(quadrants["green"], (WIDTH // 2, 0))
+            self.screenSession.blit(quadrants["red"], (0, HEIGHT // 2))
+            self.screenSession.blit(quadrants["yellow"], (WIDTH // 2, HEIGHT // 2))
+
+            # Draw black cross in the center
+            pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (WIDTH // 2 - 5, 0, 10, HEIGHT))  # Vertical line
+            pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (0, HEIGHT // 2 - 5, WIDTH, 10))  # Horizontal line
+
+            pygame.display.flip()
+            pygame.time.delay(50)
+
+    def genThresholds(self):
+        data = self.calibrationData
+        print(data)
+        xValues = np.arange(1, len(data) + 1)
+        y1Values = np.array([tup[0] for tup in data])  # First value in tuples
+        y2Values = np.array([tup[1] for tup in data])  # Second value in tuples
+
+        # Fit a polynomial (degree 2) to the data
+        p1 = Polynomial.fit(xValues, y1Values, 2)  # Best fit for first values
+        p2 = Polynomial.fit(xValues, y2Values, 2)  # Best fit for second values
+
+        # Compute thresholds (mean absolute deviation around fit)
+        residualsY1 = np.abs(y1Values - p1(xValues))
+        residualsY2 = np.abs(y2Values - p2(xValues))
+
+        up = p1(xValues) + 2 * np.std(residualsY1)
+        down = p1(xValues) - 2 * np.std(residualsY1)
+        right = p2(xValues) + 2 * np.std(residualsY2)
+        left = p2(xValues) - 2 * np.std(residualsY2)
+
+        up_threshold = up.min()   # The smallest "up" value
+        down_threshold = down.max()  # j highest "down" value
+        right_threshold = right.min()
+        left_threshold = left.max()
+
+        self.thresholds = {
+            'up': 0.63,
+            'down': 0.65,
+            'right': 0.63,
+            'left': 0.60
+            }
+        
+    def getQuadrant(self):
+
+        ratios = (self.gaze.horizontal_ratio(), self.gaze.vertical_ratio())
+        thresholds = self.thresholds
+        if ratios[0] == None or ratios[1] == None:
+            return -1
+        if ratios[0] < thresholds['left'] and ratios[1] > thresholds['up']:
+            return 0  # First Quadrant (Up & Left)
+        elif ratios[0] > thresholds['right'] and ratios[1] > thresholds['up']:
+            return 1  # Second Quadrant (Up & Right)
+        elif ratios[0] < thresholds['left'] and ratios[1] < thresholds['down']:
+            return 2  # Third Quadrant (Down & Left)
+        elif ratios[0] > thresholds['right'] and ratios[1] < thresholds['down']:
+            return 3  # Fourth Quadrant (Down & Right)
+        else:
+            return -1  # Center (No quadrant detected)
+
 game = TEAGame(screenInfo=ScreenInfo(), cameraId=1)
 game.calibrateRound()
-print(game.calibrationData)
+game.testRound()
