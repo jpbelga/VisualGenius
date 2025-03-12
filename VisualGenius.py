@@ -39,18 +39,12 @@ class TEAGame:
         self.thresholds = dict()
 
     def generateTargets(self, rows:int=3, cols:int=5, radius:int = 5):
-        targets = []
-        spacingX = self.screenInfo.resolution[0] // (cols + 1)
-        spacingY = self.screenInfo.resolution[1] // (rows + 1)
-        for row in range(rows):
-            for col in range(cols):
-                x = (col + 1) * spacingX
-                y = (row + 1) * spacingY
-                targets.append(Target(x, y, radius=radius))
+        maxRes = self.screenInfo.resolution
+        targets = [Target(0, maxRes[1]/2, radius), Target(maxRes[0]/4, maxRes[1]/2, radius), Target(maxRes[0]/2, maxRes[1]/2, radius), Target(3*maxRes[0]/4, maxRes[1]/2, radius), Target(maxRes[0], maxRes[1]/2, radius)]
         return targets
 
     def calibrateRound(self):
-        ROWS, COLS = 3, 5
+        ROWS, COLS = 5,1
         RADIUS = 10
         state = "INIT"
         running = True
@@ -64,6 +58,7 @@ class TEAGame:
         TODO: I have to find the best operator to transform the ratios in the commands 
         '''        
         lastBlink = np.zeros(10)
+        meanPos = np.zeros(10, np.float64)
 
         # The state machine follows us in the hardest moments 
         while running:
@@ -144,13 +139,13 @@ class TEAGame:
                 # Constants
         WIDTH, HEIGHT = self.screenInfo.resolution[0], self.screenInfo.resolution[1]
         ALPHA_START = 0  # Initial transparency (0 = fully transparent, 255 = fully opaque)
-        ALPHA_INCREMENT = 10  # Speed of transparency decrease
+        ALPHA_INCREMENT = 30  # Speed of transparency decrease
 
         quadrants = {
-            "blue": pygame.Surface((WIDTH // 2, HEIGHT // 2), pygame.SRCALPHA),
-            "green": pygame.Surface((WIDTH // 2, HEIGHT // 2), pygame.SRCALPHA),
-            "red": pygame.Surface((WIDTH // 2, HEIGHT // 2), pygame.SRCALPHA),
-            "yellow": pygame.Surface((WIDTH // 2, HEIGHT // 2), pygame.SRCALPHA),
+            "blue": pygame.Surface((WIDTH // 4, HEIGHT), pygame.SRCALPHA),
+            "green": pygame.Surface((WIDTH // 4, HEIGHT), pygame.SRCALPHA),
+            "red": pygame.Surface((WIDTH // 4, HEIGHT), pygame.SRCALPHA),
+            "yellow": pygame.Surface((WIDTH // 4, HEIGHT), pygame.SRCALPHA),
         }
 
         # Set initial transparency
@@ -186,13 +181,14 @@ class TEAGame:
 
             # Draw quadrants
             self.screenSession.blit(quadrants["blue"], (0, 0))
-            self.screenSession.blit(quadrants["green"], (WIDTH // 2, 0))
-            self.screenSession.blit(quadrants["red"], (0, HEIGHT // 2))
-            self.screenSession.blit(quadrants["yellow"], (WIDTH // 2, HEIGHT // 2))
+            self.screenSession.blit(quadrants["green"], (WIDTH // 4, 0))
+            self.screenSession.blit(quadrants["red"], (WIDTH //2, 0))
+            self.screenSession.blit(quadrants["yellow"], (3*WIDTH//4,0))
 
             # Draw black cross in the center
+            pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (WIDTH // 4 - 5, 0, 10, HEIGHT))  # Vertical line
             pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (WIDTH // 2 - 5, 0, 10, HEIGHT))  # Vertical line
-            pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (0, HEIGHT // 2 - 5, WIDTH, 10))  # Horizontal line
+            pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (3 * WIDTH // 4 - 5, 0, 10, HEIGHT))  # Vertical line
 
             pygame.display.flip()
             pygame.time.delay(50)
@@ -223,10 +219,9 @@ class TEAGame:
         left_threshold = left.max()
 
         self.thresholds = {
-            'up': 0.63,
-            'down': 0.65,
-            'right': 0.63,
-            'left': 0.60
+            'Line1': 0.66,
+            'Line2': 0.56,
+            'Line3': 0.49
             }
         
     def getQuadrant(self):
@@ -235,16 +230,14 @@ class TEAGame:
         thresholds = self.thresholds
         if ratios[0] == None or ratios[1] == None:
             return -1
-        if ratios[0] < thresholds['left'] and ratios[1] > thresholds['up']:
+        if ratios[0] > thresholds['Line1']:
             return 0  # First Quadrant (Up & Left)
-        elif ratios[0] > thresholds['right'] and ratios[1] > thresholds['up']:
+        elif ratios[0] > thresholds['Line2']:
             return 1  # Second Quadrant (Up & Right)
-        elif ratios[0] < thresholds['left'] and ratios[1] < thresholds['down']:
+        elif ratios[0] > thresholds['Line3']:
             return 2  # Third Quadrant (Down & Left)
-        elif ratios[0] > thresholds['right'] and ratios[1] < thresholds['down']:
-            return 3  # Fourth Quadrant (Down & Right)
         else:
-            return -1  # Center (No quadrant detected)
+            return 3  # Center (No quadrant detected)
 
 game = TEAGame(screenInfo=ScreenInfo(), cameraId=1)
 game.calibrateRound()
