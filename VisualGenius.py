@@ -39,12 +39,19 @@ class TEAGame:
         self.thresholds = dict()
 
     def generateTargets(self, rows:int=3, cols:int=5, radius:int = 5):
+        
         maxRes = self.screenInfo.resolution
-        targets = [Target(0, maxRes[1]/2, radius), Target(maxRes[0]/4, maxRes[1]/2, radius), Target(maxRes[0]/2, maxRes[1]/2, radius), Target(3*maxRes[0]/4, maxRes[1]/2, radius), Target(maxRes[0], maxRes[1]/2, radius)]
+        deltaX = maxRes[0] // rows
+        deltaY = maxRes[1] // cols
+
+        targets = []
+        for j in range (cols - 1):
+            for i in range (rows - 1):
+                targets.append(Target(deltaX * (j+1), deltaY * (i + 1)))
         return targets
 
     def calibrateRound(self):
-        ROWS, COLS = 5,1
+        ROWS, COLS = 5, 4
         RADIUS = 10
         state = "INIT"
         running = True
@@ -74,7 +81,7 @@ class TEAGame:
                         elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                             state = "TARGETS"
                             targets = self.generateTargets(rows=ROWS, cols=COLS, radius=RADIUS)
-                            targetVis = np.zeros(ROWS * COLS)
+                            targetVis = np.zeros(len(targets))
                             targetId = 0
                             targetVis[targetId] = True
                             break
@@ -103,24 +110,21 @@ class TEAGame:
                         if event.type == pygame.QUIT:
                             running = False
                         
-                    if self.gaze.is_blinking() and not lastBlink:
-                        ratios = (self.gaze.horizontal_ratio(), self.gaze.vertical_ratio())
-                        self.calibrationData.append(ratios)
+                        if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                            self.calibrationData.append(self.gaze.horizontal_ratio())
 
-                        if targetId < (ROWS * COLS) - 1:
-                            targetId = targetId + 1
-                            targetVis[targetId] = True
+                            if targetId < len(targets) - 1:
+                                targetId = targetId + 1
+                                targetVis[targetId] = True
 
-                        else:
-                            state = "END"
+                            else:
+                                state = "END"
 
-                    # Draw targets if visible
-                    if targetVis[targetId] and targetId < len(targetVis):
+                    if targetVis[targetId] and targetId < len(targets):
                         time.sleep(.1)
                         targets[targetId].draw(self.screenSession)
                     
                     pygame.display.flip()
-                    lastBlink = self.gaze.is_blinking()
                     
                 case "END":
                     for event in pygame.event.get():
@@ -128,7 +132,7 @@ class TEAGame:
                             running = False
                         elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                             running = False
-                            self.genThresholds()
+                            self.genThresholds(ROWS)
                     textSurface = self.font2.render('Calibração finalizada! Pressione Espaço para iniciar o Jogo', False, ImageColor.getrgb('crimson'))
                     textCenter = textSurface.get_rect()
                     textCenter.center = self.centerCoord
@@ -193,48 +197,30 @@ class TEAGame:
             pygame.display.flip()
             pygame.time.delay(50)
 
-    def genThresholds(self):
-        data = self.calibrationData
-        print(data)
-        xValues = np.arange(1, len(data) + 1)
-        y1Values = np.array([tup[0] for tup in data])  # First value in tuples
-        y2Values = np.array([tup[1] for tup in data])  # Second value in tuples
+    def genThresholds(self, rows):
+        data = np.array(self.calibrationData)
+        rowData = [data[i:i + rows - 1] for i in range(0, len(data), rows - 1)]
+        statistics = [(np.mean(row, axis=0) + np.std(row, axis=0)) for row in rowData]
 
-        # Fit a polynomial (degree 2) to the data
-        p1 = Polynomial.fit(xValues, y1Values, 2)  # Best fit for first values
-        p2 = Polynomial.fit(xValues, y2Values, 2)  # Best fit for second values
-
-        # Compute thresholds (mean absolute deviation around fit)
-        residualsY1 = np.abs(y1Values - p1(xValues))
-        residualsY2 = np.abs(y2Values - p2(xValues))
-
-        up = p1(xValues) + 2 * np.std(residualsY1)
-        down = p1(xValues) - 2 * np.std(residualsY1)
-        right = p2(xValues) + 2 * np.std(residualsY2)
-        left = p2(xValues) - 2 * np.std(residualsY2)
-
-        up_threshold = up.min()   # The smallest "up" value
-        down_threshold = down.max()  # j highest "down" value
-        right_threshold = right.min()
-        left_threshold = left.max()
 
         self.thresholds = {
-            'Line1': 0.66,
-            'Line2': 0.56,
-            'Line3': 0.49
+            'Line1': statistics[0],
+            'Line2': statistics[1],
+            'Line3': statistics[2]
             }
         
     def getQuadrant(self):
 
-        ratios = (self.gaze.horizontal_ratio(), self.gaze.vertical_ratio())
+        ratios = self.gaze.horizontal_ratio()
         thresholds = self.thresholds
-        if ratios[0] == None or ratios[1] == None:
+
+        if not ratios:
             return -1
-        if ratios[0] > thresholds['Line1']:
+        if ratios > thresholds['Line1']:
             return 0  # First Quadrant (Up & Left)
-        elif ratios[0] > thresholds['Line2']:
+        elif ratios > thresholds['Line2']:
             return 1  # Second Quadrant (Up & Right)
-        elif ratios[0] > thresholds['Line3']:
+        elif ratios > thresholds['Line3']:
             return 2  # Third Quadrant (Down & Left)
         else:
             return 3  # Center (No quadrant detected)
