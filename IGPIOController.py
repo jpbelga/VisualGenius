@@ -16,7 +16,7 @@ class IGPIOController(ABC):
         pass
 
     @abstractmethod
-    def readLedSignal(self) -> int:
+    def readLedSignal(self) -> list[int]:
         """
         Reads the 4-bit LED signal from the FPGA.
         
@@ -26,7 +26,7 @@ class IGPIOController(ABC):
         pass
 
     @abstractmethod
-    def writeLedSignal(self, led_signal: int) -> None:
+    def writeLedSignal(self, led_signal: list[int]) -> None:
         """
         Sends a 4-bit LED signal to the FPGA.
         
@@ -36,9 +36,16 @@ class IGPIOController(ABC):
         pass
 
     @abstractmethod
-    def TriggerStart(self) -> None:
+    def triggerStart(self) -> None:
         """
         Sends a command to start the game.
+        """
+        pass
+
+    @abstractmethod
+    def triggerReset(self) -> None:
+        """
+        Sends a command to reset the game.
         """
         pass
 

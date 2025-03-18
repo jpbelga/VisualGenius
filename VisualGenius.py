@@ -7,6 +7,7 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 from numpy.polynomial.polynomial import Polynomial
+from IGPIOController import IGPIOController
 
 class ScreenInfo:
     def __init__(self):
@@ -159,6 +160,8 @@ class TEAGame:
 
         state = 'TEST'
 
+        posEdgeIsShowing = False
+
         # Main loop
         running = True
         while running:
@@ -170,6 +173,7 @@ class TEAGame:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+                
 
             quadrant = self.getQuadrant()
             decreaseAlpha[:] = False
@@ -177,12 +181,37 @@ class TEAGame:
                 decreaseAlpha[quadrant] = True
 
             match state:
-                case TEST:
+                case 'TEST':
+                    for event in pygame.event.get():
+                        if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                            state = 'START'
 
+                    alpha[decreaseAlpha] = np.minimum(255, alpha[decreaseAlpha] + ALPHA_INCREMENT)
+                    alpha[~decreaseAlpha] = np.maximum(0, alpha[~decreaseAlpha] - ALPHA_INCREMENT)
+                
+                case 'START':
+                    alpha = np.full(4, ALPHA_START)
+                    IGPIOController.triggerReset() 
+                    IGPIOController.triggerStart()
+                    state = 'SHOW'
+                
+                case 'SHOW':
+                    isDisplayActive = IGPIOController.isDisplayActive()
+                    
+                    if not posEdgeIsShowing:
+                        posEdgeIsShowing = isDisplayActive                            
+                    
+                    if posEdgeIsShowing:
+                        alpha = IGPIOController.readLedSignal()
 
-
-            alpha[decreaseAlpha] = np.minimum(255, alpha[decreaseAlpha] + ALPHA_INCREMENT)
-            alpha[~decreaseAlpha] = np.maximum(0, alpha[~decreaseAlpha] - ALPHA_INCREMENT)
+                        if not isDisplayActive:
+                            state = 'PLAY'
+                            posEdgeIsShowing = False
+                            alpha = np.full(4, ALPHA_START)
+                    
+                case 'PLAY':
+                    isDisplayActive = IGPIOController.isDisplayActive()
+                    #TODO
 
             # Update quadrants with current alpha
             quadrants["blue"].fill((*ImageColor.getrgb('blue'), alpha[0]))
