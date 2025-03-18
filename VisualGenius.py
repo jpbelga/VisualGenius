@@ -139,8 +139,8 @@ class TEAGame:
                     self.screenSession.blit(textSurface, textCenter)
                     pygame.display.flip()
     
-    def testRound(self):
-                # Constants
+    def playRound(self):
+
         WIDTH, HEIGHT = self.screenInfo.resolution[0], self.screenInfo.resolution[1]
         ALPHA_START = 0  # Initial transparency (0 = fully transparent, 255 = fully opaque)
         ALPHA_INCREMENT = 30  # Speed of transparency decrease
@@ -156,6 +156,8 @@ class TEAGame:
         alpha = np.full(4, ALPHA_START)
 
         decreaseAlpha = np.zeros(4, dtype=np.bool_)  # Control transparency change
+
+        state = 'TEST'
 
         # Main loop
         running = True
@@ -173,6 +175,11 @@ class TEAGame:
             decreaseAlpha[:] = False
             if quadrant > -1:
                 decreaseAlpha[quadrant] = True
+
+            match state:
+                case TEST:
+
+
 
             alpha[decreaseAlpha] = np.minimum(255, alpha[decreaseAlpha] + ALPHA_INCREMENT)
             alpha[~decreaseAlpha] = np.maximum(0, alpha[~decreaseAlpha] - ALPHA_INCREMENT)
@@ -196,11 +203,14 @@ class TEAGame:
 
             pygame.display.flip()
             pygame.time.delay(50)
+    
+    def playRound(self):
+        pass
 
     def genThresholds(self, rows):
         data = np.array(self.calibrationData)
         rowData = [data[i:i + rows - 1] for i in range(0, len(data), rows - 1)]
-        statistics = [(np.mean(row, axis=0) + np.std(row, axis=0)) for row in rowData]
+        statistics = [np.mean(row, axis=0) for row in rowData]
 
 
         self.thresholds = {
