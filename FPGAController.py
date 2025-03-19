@@ -15,7 +15,7 @@ class DIO:
     start = (6)
     dificuldade = (7)
     leds = (11, 8)
-    chaves = (2,3,4,5)
+    chaves = [2,3,4,5]
 
 
 class FPGAController(IGPIOController):
@@ -56,7 +56,7 @@ class FPGAController(IGPIOController):
         # 1kHz pulse on DIO-0
         self.dwf.FDwfDigitalOutEnableSet(self.hdwf, c_int(0), c_int(1))
         print(self.hzSys)
-        self.dwf.FDwfDigitalOutDividerSet(self.hdwf, c_int(0), c_int(int(self.hzSys.value/1e3/2)))
+        self.dwf.FDwfDigitalOutDividerSet(self.hdwf, c_int(0), c_int(int(self.hzSys.value/1e3)))
         self.dwf.FDwfDigitalOutCounterSet(self.hdwf, c_int(0), c_int(1), c_int(1))
         self.dwf.FDwfDigitalOutConfigure(self.hdwf, c_int(1))
 
@@ -67,8 +67,9 @@ class FPGAController(IGPIOController):
         # This indexes from 11 to 8 - 1 and reverses the list for us so that led 0 is at index 0
         return self.gpio_state[DIO.leds[0] : DIO.leds[1] - 1 : -1]
     
-    def writeLedSignal(self, led_signal: list) -> None:
+    def writeLedSignal(self, led_signal) -> None:
         # led_signal is actually the chave being pressed
+
         self.trigger_chave(led_signal)
 
     def write_gpio(self, channel, value):
@@ -84,18 +85,19 @@ class FPGAController(IGPIOController):
 
     # TODO isso daqui não tá funcionando corretamente. 
     def trigger_chave(self, chave):
-        self.write_gpio(DIO.chaves[chave], 1)
-        time.sleep(.01)
-        self.write_gpio(DIO.chaves[chave], 0)
+        
+        self.write_gpio(chave + 2, 1)
+        time.sleep(.1)
+        self.write_gpio(chave + 2, 0)
 
     def triggerStart(self) -> None:
         self.write_gpio(DIO.start, 1)
-        time.sleep(.01)
+        time.sleep(.1)
         self.write_gpio(DIO.start, 0)
 
     def triggerReset(self) -> None:
         self.write_gpio(DIO.reset, 1)
-        time.sleep(.01)
+        time.sleep(.1)
         self.write_gpio(DIO.reset, 0)
 
     def checkWinCondition(self) -> bool:

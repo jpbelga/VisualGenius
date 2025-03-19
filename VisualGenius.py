@@ -37,7 +37,11 @@ class TEAGame:
         self.fPS = self.camera.get(cv2.CAP_PROP_FPS)
         self.calibrationData:list[tuple[float]] = []
         self.centerCoord = tuple(a//2 for a in self.screenInfo.resolution)
-        self.thresholds = dict()
+        self.thresholds = self.thresholds = {
+            'Line1': 0.67,
+            'Line2': 0.57,
+            'Line3': 0.47
+            }
 
     def generateTargets(self, rows:int=3, cols:int=5, radius:int = 5):
         
@@ -65,8 +69,6 @@ class TEAGame:
         
         TODO: I have to find the best operator to transform the ratios in the commands 
         '''        
-        lastBlink = np.zeros(10)
-        meanPos = np.zeros(10, np.float64)
 
         # The state machine follows us in the hardest moments 
         while running:
@@ -144,7 +146,7 @@ class TEAGame:
 
         WIDTH, HEIGHT = self.screenInfo.resolution[0], self.screenInfo.resolution[1]
         ALPHA_START = 0  # Initial transparency (0 = fully transparent, 255 = fully opaque)
-        ALPHA_INCREMENT = 30  # Speed of transparency decrease
+        ALPHA_INCREMENT = 20  # Speed of transparency decrease
 
         quadrants = {
             "blue": pygame.Surface((WIDTH // 4, HEIGHT), pygame.SRCALPHA),
@@ -204,14 +206,17 @@ class TEAGame:
                     
                     if posEdgeIsShowing:
                         alphaIncrement = np.array(fpgaController.readLedSignal())
+                        
                         alpha[:] = 0
-                        alpha[alphaIncrement] = 255
-
+                        alpha[alphaIncrement == 1] = 255
+                        
                         if not isDisplayActive:
                             state = 'PLAY'
                             posEdgeIsShowing = False
                             alpha = np.full(4, ALPHA_START)
                     
+                    if fpgaController.checkLoseCondition(): state = 'ERROR'
+
                 case 'PLAY':
                     isDisplayActive = fpgaController.isDisplayActive()
                     isError = fpgaController.checkLoseCondition()
@@ -225,13 +230,18 @@ class TEAGame:
                         alpha[~decreaseAlpha] = np.maximum(0, alpha[~decreaseAlpha] - ALPHA_INCREMENT)
                        
                         if max(alpha) >= 255:
-                            fpgaController.writeLedSignal((alpha >= 255).tolist())
+                            fpgaController.writeLedSignal(np.argmax(alpha))
+                            alpha = np.full(4, ALPHA_START)
+                            
 
                 case 'ERROR':
-                    running = False
+                    alpha = np.full(4, ALPHA_START)
+                    if eventKSpace == True:
+                        state = 'TEST'
                 case 'WIN':
-                    running = False
-
+                    alpha = np.full(4, ALPHA_START)
+                    if eventKSpace == True:
+                        state = 'TEST'
             # Update quadrants with current alpha
             quadrants["blue"].fill((*ImageColor.getrgb('blue'), alpha[0]))
             quadrants["green"].fill((*ImageColor.getrgb('green'), alpha[1]))
@@ -248,6 +258,11 @@ class TEAGame:
             pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (WIDTH // 4 - 5, 0, 10, HEIGHT))  # Vertical line
             pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (WIDTH // 2 - 5, 0, 10, HEIGHT))  # Vertical line
             pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (3 * WIDTH // 4 - 5, 0, 10, HEIGHT))  # Vertical line
+
+            textSurface = self.font2.render(state, False, ImageColor.getrgb('crimson'))
+            textCenter = textSurface.get_rect()
+            textCenter.center = self.centerCoord
+            self.screenSession.blit(textSurface, textCenter)
 
             pygame.display.flip()
             pygame.time.delay(50)
@@ -282,6 +297,6 @@ class TEAGame:
         else:
             return 3  # Center (No quadrant detected)
 
-game = TEAGame(screenInfo=ScreenInfo(), cameraId=1)
+game = TEAGame(screenInfo=ScreenInfo(), cameraId=2)
 game.calibrateRound()
 game.playRound()
