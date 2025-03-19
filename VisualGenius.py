@@ -7,7 +7,7 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 from numpy.polynomial.polynomial import Polynomial
-from IGPIOController import IGPIOController
+from FPGAController import FPGAController
 
 class ScreenInfo:
     def __init__(self):
@@ -162,8 +162,10 @@ class TEAGame:
 
         posEdgeIsShowing = False
 
+        eventKSpace = False
         # Main loop
         running = True
+        fpgaController = FPGAController()
         while running:
             self.screenSession.fill(ImageColor.getrgb('lightgrey'))
             _, frame = self.camera.read()
@@ -173,7 +175,8 @@ class TEAGame:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
-                
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                    eventKSpace = True
 
             quadrant = self.getQuadrant()
             decreaseAlpha[:] = False
@@ -182,27 +185,25 @@ class TEAGame:
 
             match state:
                 case 'TEST':
-                    for event in pygame.event.get():
-                        if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                            state = 'START'
 
                     alpha[decreaseAlpha] = np.minimum(255, alpha[decreaseAlpha] + ALPHA_INCREMENT)
                     alpha[~decreaseAlpha] = np.maximum(0, alpha[~decreaseAlpha] - ALPHA_INCREMENT)
+                    if eventKSpace: state = 'START'
                 
                 case 'START':
                     alpha = np.full(4, ALPHA_START)
-                    IGPIOController.triggerReset() 
-                    IGPIOController.triggerStart()
+                    fpgaController.triggerReset() 
+                    fpgaController.triggerStart()
                     state = 'SHOW'
                 
                 case 'SHOW':
-                    isDisplayActive = IGPIOController.isDisplayActive()
-                    
+                    isDisplayActive = fpgaController.isDisplayActive()
+
                     if not posEdgeIsShowing:
                         posEdgeIsShowing = isDisplayActive                            
                     
                     if posEdgeIsShowing:
-                        alphaIncrement = IGPIOController.readLedSignal()
+                        alphaIncrement = fpgaController.readLedSignal()
                         alpha[:] = 0
                         alpha[alphaIncrement] = 255
 
@@ -212,15 +213,15 @@ class TEAGame:
                             alpha = np.full(4, ALPHA_START)
                     
                 case 'PLAY':
-                    isDisplayActive = IGPIOController.isDisplayActive()
-                    isError = IGPIOController.checkLoseCondition()
-                    isWin = IGPIOController.checkWinCondition()
+                    isDisplayActive = fpgaController.isDisplayActive()
+                    isError = fpgaController.checkLoseCondition()
+                    isWin = fpgaController.checkWinCondition()
 
                     if isDisplayActive: state = 'SHOW'
                     elif isError: state = 'ERROR'
                     elif isWin: state = 'WIN'
                     else: 
-                        IGPIOController.writeLedSignal(quadrant)
+                        fpgaController.writeLedSignal(quadrant)
                         alpha = np.full(4, ALPHA_START) 
 
                 case 'ERROR':
@@ -247,6 +248,7 @@ class TEAGame:
 
             pygame.display.flip()
             pygame.time.delay(50)
+            eventKSpace = False
 
 
     def genThresholds(self, rows):
@@ -279,4 +281,4 @@ class TEAGame:
 
 game = TEAGame(screenInfo=ScreenInfo(), cameraId=1)
 game.calibrateRound()
-game.testRound()
+game.playRound()
