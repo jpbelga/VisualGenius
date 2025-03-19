@@ -202,7 +202,9 @@ class TEAGame:
                         posEdgeIsShowing = isDisplayActive                            
                     
                     if posEdgeIsShowing:
-                        alpha = IGPIOController.readLedSignal()
+                        alphaIncrement = IGPIOController.readLedSignal()
+                        alpha[:] = 0
+                        alpha[alphaIncrement] = 255
 
                         if not isDisplayActive:
                             state = 'PLAY'
@@ -211,7 +213,20 @@ class TEAGame:
                     
                 case 'PLAY':
                     isDisplayActive = IGPIOController.isDisplayActive()
-                    #TODO
+                    isError = IGPIOController.checkLoseCondition()
+                    isWin = IGPIOController.checkWinCondition()
+
+                    if isDisplayActive: state = 'SHOW'
+                    elif isError: state = 'ERROR'
+                    elif isWin: state = 'WIN'
+                    else: 
+                        IGPIOController.writeLedSignal(quadrant)
+                        alpha = np.full(4, ALPHA_START) 
+
+                case 'ERROR':
+                    pass
+                case 'WIN':
+                    pass
 
             # Update quadrants with current alpha
             quadrants["blue"].fill((*ImageColor.getrgb('blue'), alpha[0]))
@@ -232,9 +247,7 @@ class TEAGame:
 
             pygame.display.flip()
             pygame.time.delay(50)
-    
-    def playRound(self):
-        pass
+
 
     def genThresholds(self, rows):
         data = np.array(self.calibrationData)
