@@ -203,7 +203,7 @@ class TEAGame:
                         posEdgeIsShowing = isDisplayActive                            
                     
                     if posEdgeIsShowing:
-                        alphaIncrement = fpgaController.readLedSignal()
+                        alphaIncrement = np.array(fpgaController.readLedSignal())
                         alpha[:] = 0
                         alpha[alphaIncrement] = 255
 
@@ -221,13 +221,16 @@ class TEAGame:
                     elif isError: state = 'ERROR'
                     elif isWin: state = 'WIN'
                     else: 
-                        fpgaController.writeLedSignal(quadrant)
-                        alpha = np.full(4, ALPHA_START) 
+                        alpha[decreaseAlpha] = np.minimum(255, alpha[decreaseAlpha] + ALPHA_INCREMENT)
+                        alpha[~decreaseAlpha] = np.maximum(0, alpha[~decreaseAlpha] - ALPHA_INCREMENT)
+                       
+                        if max(alpha) >= 255:
+                            fpgaController.writeLedSignal((alpha >= 255).tolist())
 
                 case 'ERROR':
-                    pass
+                    running = False
                 case 'WIN':
-                    pass
+                    running = False
 
             # Update quadrants with current alpha
             quadrants["blue"].fill((*ImageColor.getrgb('blue'), alpha[0]))
