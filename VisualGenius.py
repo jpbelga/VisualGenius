@@ -5,8 +5,6 @@ import tkinter
 from PIL import ImageColor
 import numpy as np
 import time
-import matplotlib.pyplot as plt
-from numpy.polynomial.polynomial import Polynomial
 from FPGAController import FPGAController
 
 class ScreenInfo:
@@ -57,7 +55,7 @@ class TEAGame:
 
     def calibrateRound(self):
         ROWS, COLS = 5, 4
-        RADIUS = 10
+        RADIUS = 20
         state = "INIT"
         running = True
         '''
@@ -122,11 +120,29 @@ class TEAGame:
 
                             else:
                                 state = "END"
+                                try:
+                                    self.genThresholds(ROWS)
+                                except: 
+                                    state = "ERROR"
+                                
 
                     if targetVis[targetId] and targetId < len(targets):
                         time.sleep(.1)
                         targets[targetId].draw(self.screenSession)
                     
+                    pygame.display.flip()
+
+                case "ERROR":
+                    for event in pygame.event.get():
+                        if event.type == pygame.QUIT:
+                            running = False
+                        elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                            state = "INIT"
+                            
+                    textSurface = self.font2.render('Erro na Calibração! Pressione Espaço para Recomeçar', False, ImageColor.getrgb('crimson'))
+                    textCenter = textSurface.get_rect()
+                    textCenter.center = self.centerCoord
+                    self.screenSession.blit(textSurface, textCenter)
                     pygame.display.flip()
                     
                 case "END":
@@ -135,7 +151,7 @@ class TEAGame:
                             running = False
                         elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                             running = False
-                            self.genThresholds(ROWS)
+
                     textSurface = self.font2.render('Calibração finalizada! Pressione Espaço para iniciar o Jogo', False, ImageColor.getrgb('crimson'))
                     textCenter = textSurface.get_rect()
                     textCenter.center = self.centerCoord
@@ -297,6 +313,6 @@ class TEAGame:
         else:
             return 3  # Center (No quadrant detected)
 
-game = TEAGame(screenInfo=ScreenInfo(), cameraId=2)
+game = TEAGame(screenInfo=ScreenInfo(), cameraId=1)
 game.calibrateRound()
 game.playRound()
