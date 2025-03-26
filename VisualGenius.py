@@ -44,8 +44,8 @@ class TEAGame:
     def generateTargets(self, rows:int=3, cols:int=5, radius:int = 5):
         
         maxRes = self.screenInfo.resolution
-        deltaX = maxRes[0] // rows
-        deltaY = maxRes[1] // cols
+        deltaX = maxRes[0] // cols
+        deltaY = maxRes[1] // rows
 
         targets = []
         for j in range (cols - 1):
@@ -54,7 +54,7 @@ class TEAGame:
         return targets
 
     def calibrateRound(self):
-        ROWS, COLS = 5, 4
+        ROWS, COLS = 5, 3
         RADIUS = 20
         state = "INIT"
         running = True
@@ -165,10 +165,10 @@ class TEAGame:
         ALPHA_INCREMENT = 20  # Speed of transparency decrease
 
         quadrants = {
-            "blue": pygame.Surface((WIDTH // 4, HEIGHT), pygame.SRCALPHA),
-            "green": pygame.Surface((WIDTH // 4, HEIGHT), pygame.SRCALPHA),
-            "red": pygame.Surface((WIDTH // 4, HEIGHT), pygame.SRCALPHA),
-            "yellow": pygame.Surface((WIDTH // 4, HEIGHT), pygame.SRCALPHA),
+            "blue": pygame.Surface((WIDTH // 3, HEIGHT), pygame.SRCALPHA),
+            "green": pygame.Surface((WIDTH // 3, HEIGHT), pygame.SRCALPHA),
+            "red": pygame.Surface((WIDTH // 3, HEIGHT), pygame.SRCALPHA),
+            "yellow": pygame.Surface((WIDTH // 3, HEIGHT), pygame.SRCALPHA)
         }
 
         # Set initial transparency
@@ -266,14 +266,14 @@ class TEAGame:
 
             # Draw quadrants
             self.screenSession.blit(quadrants["blue"], (0, 0))
-            self.screenSession.blit(quadrants["green"], (WIDTH // 4, 0))
-            self.screenSession.blit(quadrants["red"], (WIDTH //2, 0))
-            self.screenSession.blit(quadrants["yellow"], (3*WIDTH//4,0))
+            self.screenSession.blit(quadrants["green"], (WIDTH // 3, 0))
+            self.screenSession.blit(quadrants["red"], (2 * WIDTH // 3, 0))
+            #self.screenSession.blit(quadrants["yellow"], (3*WIDTH//4,0))
 
             # Draw black cross in the center
-            pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (WIDTH // 4 - 5, 0, 10, HEIGHT))  # Vertical line
-            pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (WIDTH // 2 - 5, 0, 10, HEIGHT))  # Vertical line
-            pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (3 * WIDTH // 4 - 5, 0, 10, HEIGHT))  # Vertical line
+            pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (WIDTH // 3 - 5, 0, 10, HEIGHT))  # Vertical line
+            pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (2* WIDTH // 3 - 5, 0, 10, HEIGHT))  # Vertical line
+            #pygame.draw.rect(self.screenSession, ImageColor.getrgb('black'), (3 * WIDTH // 4 - 5, 0, 10, HEIGHT))  # Vertical line
 
             textSurface = self.font2.render(state, False, ImageColor.getrgb('crimson'))
             textCenter = textSurface.get_rect()
